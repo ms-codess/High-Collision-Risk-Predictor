@@ -1,0 +1,11 @@
+# Logistic regression baseline
+features_path: data/processed/segment_year_features.parquet
+model: logreg
+test_year: 2024
+output_dir: models
+params:
+  penalty: l2
+  C: 1.0
+  solver: lbfgs
+  class_weight: balanced
+  random_state: 42

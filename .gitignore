@@ -1,0 +1,48 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.env
+.venv
+venv/
+ENV/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
+.notebook_cache/
+
+# Data & artifacts
+data/raw/
+data/processed/
+models/
+reports/
+notebooks/
+tmp/
+
+# Logs
+logs/
+*.log
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+
+# Python tooling
+.mypy_cache/
+.pytest_cache/
+coverage.xml
+htmlcov/
+
+# Local configs
+*.env
+*.secrets
