@@ -1,85 +1,59 @@
 # High-Collision-Risk-Predictor
 
-**Project summary** ? Predicts which Ottawa road segments will be in the **top 20% collision-risk** band in a given year. Uses City of Ottawa open data (collisions, road centrelines, construction), temporal train/test (no leakage), and gradient-boosted trees (LightGBM). Best model reaches **PR-AUC ~0.84**; an interactive map and feature importance report support prioritization (e.g. top 5?10% of segments for inspections). Pipeline: ingest ? clean ? spatial join ? segment-year features with lagged counts ? train/evaluate ? map and interpretability.
+Predicts which Ottawa road segments are likely to be in the top 20% collision-risk band for the next year. 
 
-Predicts road segments in Ottawa that are likely to be in the top collision-risk band in the next year. The project is set up to clean municipal open data, engineer spatial features, and compare multiple classification models.
-
-## Data (already in `data/raw/`)
-- `Traffic_Collision_Data.csv` ? collision points with dates, modes, injury severity.
-- `Road_Centrelines___Lignes_m%C3%A9dianes_de_route.csv` ? road segment attributes/geometry (needs geospatial format or WKT geometry).
-- `Upcoming_Construction_facilities%2C_culverts%2C_parks%2C_bridges.csv` ? planned works that may affect risk.
-- `Transportation_Midblock_Volumes_2024.csv` ? traffic volumes (exposure proxy).
-- `OC_Transpo_Stops.csv` ? transit stop locations.
+## Data (in `data/raw/`)
+- `Traffic_Collision_Data.csv` � collisions with date/time, coords, severity.
+- `Road_Centrelines___Lignes_m%C3%A9dianes_de_route.shp` � road segments & geometry.
+- `Upcoming_Construction_facilities%2C_culverts%2C_parks%2C_bridges.csv` � planned works.
+- `Transportation_Midblock_Volumes_2024.csv` � volume proxy (optional in features).
+- `OC_Transpo_Stops.csv` � transit stops (optional density feature).
 
 ## Repo layout
-- `notebooks/` ? exploratory work (start with `00_data_prep.ipynb`).
-- `src/data/` ? ingestion, cleaning, spatial joins.
-- `src/utils/geo.py` ? CRS and spatial helper functions.
-- `src/features/` ? feature building pipeline.
-- `src/models/` ? training/evaluation scripts.
-- `data/processed/` ? cleaned Parquet outputs (generated).
-- `reports/` ? figures/metrics (generated).
-- `tests/` ? unit tests, fixtures.
+- `src/data/` � ingest, clean, spatial joins.
+- `src/features/` � feature builder (`build.py`).
+- `src/models/` � training (`train.py`), feature importance, interpretability.
+- `src/utils/geo.py` � CRS + spatial helpers.
+- `src/viz/map_results.py` � render interactive risk map.
+- `data/processed/` � generated parquet tables.
+- `models/` � trained artifacts, metrics, SHAP/importance outputs.
+- `reports/` � figures, map (for Pages).
+- `docs/` � deployed `index.html` (GitHub Pages).
 
-## Quickstart (Windows PowerShell)
+## Quickstart
 ```
 python -m venv .venv
 .\.venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## Run everything (one command)
-With raw data and the roads shapefile in `data/raw/`, run the full pipeline (features ? train both models ? map):
-```
-.\run_all.ps1
-```
-Then open `reports/risk_map.html`. On first run, use the path to your `.shp` if the filename differs (e.g. resolve `data\raw\*.shp` in the script).
-
-## Running the data prep notebook
-1) Open `notebooks/00_data_prep.ipynb` and run the sys.path cell (second cell).
-2) Run remaining cells to load/clean collisions, roads (shapefile), construction, and try collision?segment spatial join.
-3) Export cleaned tables to `data/processed/` as you go.
-
 ## Build features
 ```
-python -m src.features.build --collisions data/raw/Traffic_Collision_Data.csv ^
-  --construction data/raw/Upcoming_Construction_facilities%2C_culverts%2C_parks%2C_bridges.csv ^
+python -m src.features.build --collisions data/raw/Traffic_Collision_Data.csv \
+  --roads data/raw/Road_Centrelines___Lignes_m%C3%A9dianes_de_route.shp \
+  --construction data/raw/Upcoming_Construction_facilities%2C_culverts%2C_parks%2C_bridges.csv \
   --buffer-m 12 --out data/processed/segment_year_features.parquet
 ```
 
 ## Train models
 ```
 python -m src.models.train --config configs/logreg.yaml   # baseline
-python -m src.models.train --config configs/lightgbm.yaml # stronger model
+python -m src.models.train --config configs/lightgbm.yaml # best performer
 ```
-Metrics are written to `models/*_metrics.json`; trained pipelines to `models/*_model.joblib`. For tree models, feature importances and a SHAP bar plot are saved alongside (e.g., `models/lgbm_feature_importances.csv`, `models/lgbm_shap_bar.png`).
+Artifacts: `models/*_model.joblib`, `models/*_metrics.json`, `models/*_feature_importances.csv`, `models/*_shap_bar.png` (tree models).
 
-## View best model results on map
-After training at least one model, generate an interactive map of predicted risk by segment (best model chosen by PR-AUC):
-```
-python -m src.viz.map_results --features data/processed/segment_year_features.parquet ^
-  --models-dir models --roads data/raw/Road_Centrelines___Lignes_m?dianes_de_route.shp ^
-  --out reports/risk_map.html
-```
-Open `reports/risk_map.html` in a browser. The best model name is written to `reports/best_model.txt`.
+## Model comparison (test year 2024)
+| Model | ROC-AUC | PR-AUC | Brier | Recall@5% | Recall@10% | Notes |
+|-------|--------:|-------:|------:|----------:|-----------:|-------|
+| LightGBM | 0.936 | 0.842 | 0.075 | 0.238 | 0.459 | Best overall; tree-based, calibrated via prob outputs |
+| Logistic Regression | 0.923 | 0.824 | 0.122 | 0.238 | 0.455 | Strong linear baseline |
 
-## Feature importance & SHAP
-- Tree models save built-in importances and SHAP bar plot automatically (see `models/*_feature_importances.csv` and `models/*_shap_bar.png`).
-- For permutation importance on PR-AUC (best model), run:
-```
-python -m src.models.feature_importance --features data/processed/segment_year_features.parquet --models-dir models --out reports/feature_importance.png
-```
-Output: `reports/feature_importance.png`.
+Best model: **LightGBM** (see `models/lgbm_metrics.json`, `models/lgbm_model.joblib`).
 
-## Latest results (test year 2024, using current processed data)
-- LightGBM: ROC-AUC 0.936, PR-AUC 0.842, Brier 0.075, Recall@5% 0.238, Recall@10% 0.459. **Best so far.**
-- Logistic regression: ROC-AUC 0.923, PR-AUC 0.824, Brier 0.122, Recall@5% 0.238, Recall@10% 0.455.
-Artifacts live under `models/` (metrics JSON, model joblib, importances, SHAP plot).
+## Interpretability
+- **Feature importance (gain):** `models/lgbm_feature_importances.csv` (sorted).
+- **Global SHAP (bar):** `models/lgbm_shap_bar.png` (top 20 drivers).
+- **Permutation importance:** `python -m src.models.feature_importance --features data/processed/segment_year_features.parquet --models-dir models --out reports/feature_importance.png`.
 
-## Tests
-```
-pytest tests/test_geo.py
-```
-
-## Making this project stand out (employability)
-See **[docs/EMPLOYABILITY_ROADMAP.md](docs/EMPLOYABILITY_ROADMAP.md)** for a checklist of high-impact additions: interpretability, model comparison table, EDA, tests/CI, API/Streamlit, and one-liners for your resume.
+## Map (GitHub Pages)
+- Deployed map: https://ms-codess.github.io/High-Collision-Risk-Predictor/
