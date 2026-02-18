@@ -170,28 +170,4 @@ Why it wins:
 
 ---
 
-## 🔍 Interpretability
-
-This project emphasizes **explainability**:
-
-* Gain-based feature importance
-* Permutation importance
-*SHAP global importance
-
-Run permutation importance:
-
-```bash
-python -m src.models.feature_importance \
-  --features data/processed/segment_year_features.parquet \
-  --models-dir models \
-  --out reports/feature_importance.png
-```
-
----
-
-##  Interactive Risk Map
-
-The final output is deployed via GitHub Pages:
-
-👉 [https://ms-codess.github.io/High-Collision-Risk-Predictor/](https://ms-codess.github.io/High-Collision-Risk-Predictor/)
 
